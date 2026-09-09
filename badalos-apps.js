@@ -308,12 +308,17 @@ function appSettings(os) {
 
 /* ==================== APP REGISTRY ==================== */
 
+/* Parat Panel (load parat-panel.js file — alag rakha hai size ka khayal) */
+let _paratPanel = null;
+try { _paratPanel = require('./parat-panel.js'); } catch { /* browser mein script tag se aayega */ }
+
 const BADAL_APPS = {
   terminal: { title: 'Terminal', factory: appTerminal },
   files: { title: 'Files', factory: appFiles },
   editor: { title: 'Editor', factory: appEditor },
   sysmon: { title: 'System Monitor', factory: appSysmon },
   settings: { title: 'Settings', factory: appSettings },
+  parat: { title: 'Parat Panel', factory: (os) => (typeof appParatPanel === 'function' ? appParatPanel(os) : _paratPanel && _paratPanel.appParatPanel(os)) },
 };
 
 if (typeof module !== 'undefined' && module.exports) {
