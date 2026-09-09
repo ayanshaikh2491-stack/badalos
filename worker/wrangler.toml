@@ -1,0 +1,12 @@
+name = "badalos-cloud"
+main = "worker.js"
+compatibility_date = "2024-12-01"
+
+# VFS tree ka home — Cloudflare KV (free tier: 100k reads/day, 1k writes/day)
+[[kv_namespaces]]
+binding = "BADALOS"
+id = "REPLACE_WITH_YOUR_KV_ID"
+
+# CRON daemon — har 30 min heartbeat (device off ho tab bhi)
+[triggers]
+crons = ["*/30 * * * *"]

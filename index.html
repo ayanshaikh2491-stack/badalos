@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BadalOS — cloud pe rehta hai, browser mein chalta hai</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ==================== BOOT ==================== -->
+<div id="boot" class="boot">
+  <div class="boot-logo">☁️ BadalOS</div>
+  <pre id="boot-log" class="boot-log"></pre>
+  <div class="boot-bar"><div id="boot-fill"></div></div>
+</div>
+
+<!-- ==================== DESKTOP ==================== -->
+<div id="desktop" class="desktop hidden">
+  <!-- icons -->
+  <div class="icons" id="icons">
+    <div class="icon" data-app="terminal" title="Terminal">.Terminal</div>
+    <div class="icon" data-app="files" title="Files">.Files</div>
+    <div class="icon" data-app="editor" title="Editor">.Editor</div>
+    <div class="icon" data-app="sysmon" title="System Monitor">.SysMon</div>
+    <div class="icon" data-app="settings" title="Settings">.Settings</div>
+  </div>
+
+  <!-- windows yahan spawn honge -->
+  <div id="win-area"></div>
+
+  <!-- taskbar -->
+  <div class="taskbar" id="taskbar">
+    <button class="tb-btn tb-start" id="start-btn" title="Apps">☰</button>
+    <div class="tb-apps" id="tb-apps"></div>
+    <div class="tb-right">
+      <span id="tb-clock" class="tb-clock"></span>
+      <button class="tb-btn" id="cloud-btn" title="Cloud sync status">☁️</button>
+      <button class="tb-btn" id="shutdown" title="Power">⏻</button>
+    </div>
+  </div>
+
+  <!-- start menu -->
+  <div class="start-menu hidden" id="start-menu">
+    <div class="sm-title">BadalOS</div>
+    <div class="sm-item" data-app="terminal">> Terminal</div>
+    <div class="sm-item" data-app="files">📁 Files</div>
+    <div class="sm-item" data-app="editor">✏️ Editor</div>
+    <div class="sm-item" data-app="sysmon">📊 SysMon</div>
+    <div class="sm-item" data-app="settings">⚙️ Settings</div>
+    <div class="sm-sep"></div>
+    <div class="sm-item sm-danger" id="sm-reboot">↻ Reboot</div>
+  </div>
+</div>
+
+<script src="kernel/badalos-kernel.js"></script>
+<script src="badalos-apps.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
