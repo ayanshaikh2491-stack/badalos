@@ -290,6 +290,12 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function fmtKB(n) {
+  if (n < 1024) return n + 'B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + 'K';
+  return (n / 1024 / 1024).toFixed(1) + 'M';
+}
+
 /* ==================== SHELL ==================== */
 
 class Shell {
@@ -338,6 +344,99 @@ class Shell {
       }
       case 'mkdir': return this.printOp(this.vfs.mkdir(args[0]), 'mkdir');
       case 'rm': return this.printOp(this.vfs.rm(args[0]), 'rm');
+      case 'cp': {
+        if (args.length < 2) return this.io.print('usage: cp <src> <dst>');
+        const r = this.vfs.read(args[0]);
+        if (!r.ok) return this.io.print('cp: ' + r.err);
+        const w = this.vfs.write(args[1], r.content);
+        return this.io.print(w.ok ? '' : 'cp: ' + w.err);
+      }
+      case 'mv': {
+        if (args.length < 2) return this.io.print('usage: mv <src> <dst>');
+        const r = this.vfs.read(args[0]);
+        if (!r.ok) return this.io.print('mv: ' + r.err);
+        const w = this.vfs.write(args[1], r.content);
+        if (!w.ok) return this.io.print('mv: ' + w.err);
+        this.vfs.rm(args[0]);
+        return;
+      }
+      case 'touch': {
+        if (!args[0]) return this.io.print('usage: touch <file>');
+        const r = this.vfs.read(args[0]);
+        return this.vfs.write(args[0], r.ok ? r.content : '');
+      }
+      case 'tree': {
+        const root = args[0] || '.';
+        const node = this.vfs._node(this.vfs._resolve(root));
+        if (!node) return this.io.print('tree: no such directory: ' + root);
+        this.io.print(this.vfs._resolve(root));
+        this.printTree(node, '', this.io);
+        return;
+      }
+      case 'find': {
+        const q = (args[0] || '').toLowerCase();
+        if (!q) return this.io.print('usage: find <name>');
+        const hits = this.walk('.').filter((p) => p.toLowerCase().includes(q));
+        return this.io.print(hits.length ? hits.join('\n') : '(kuch nahi mila)');
+      }
+      case 'grep': {
+        // grep <text> [path]
+        if (!args[0]) return this.io.print('usage: grep <text> [path]');
+        const root = args[1] || '.';
+        let count = 0;
+        for (const p of this.walk(root)) {
+          const r = this.vfs.read(p);
+          if (!r.ok) continue;
+          const lines = r.content.split('\n');
+          lines.forEach((l, i) => {
+            if (l.toLowerCase().includes(args[0].toLowerCase())) {
+              count++;
+              this.io.print(p + ':' + (i + 1) + ': ' + l.trim().slice(0, 80));
+            }
+          });
+        }
+        if (!count) this.io.print('(kuch nahi mila)');
+        return;
+      }
+      case 'wc': {
+        if (!args[0]) return this.io.print('usage: wc <file>');
+        const r = this.vfs.read(args[0]);
+        if (!r.ok) return this.io.print('wc: ' + r.err);
+        const lines = r.content.split('\n').length;
+        const words = r.content.split(/\s+/).filter(Boolean).length;
+        return this.io.print(lines + ' lines  ' + words + ' words  ' + r.content.length + ' bytes');
+      }
+      case 'head': return this.printSlice(args, 0);
+      case 'tail': return this.printSlice(args, -1);
+      case 'df': {
+        const raw = (typeof localStorage !== 'undefined' && localStorage.getItem) ? (localStorage.getItem('badalos.vfs.v1') || '') : '';
+        const quota = 5 * 1024 * 1024;
+        return this.io.print(
+          'Filesystem   Used     Free     Use%  Mount\n' +
+          'badal-vfs    ' + fmtKB(raw.length) + '  ' + fmtKB(quota - raw.length) + '  ' +
+          Math.round((raw.length / quota) * 100) + '%    /'
+        );
+      }
+      case 'top': {
+        if (!this.io.psList) return this.io.print('top: no process info');
+        this.io.print('PID  APP            UPTIME');
+        for (const p of this.io.psList()) {
+          const up = Math.floor((Date.now() - p.started) / 1000);
+          this.io.print(String(p.pid).padEnd(5) + p.app.padEnd(15) + up + 's');
+        }
+        return;
+      }
+      case 'neofetch': return this.io.print(
+        '      ☁️       root@badal\n' +
+        '     ☁☁️       -------\n' +
+        '    ☁☁☁️       OS: BadalOS 1.0 cloud\n' +
+        '   ☁☁☁☁️      Kernel: badal-kernel 1.0\n' +
+        '              Shell: badal-sh 1.0\n' +
+        '              WM: BadalWM\n' +
+        '              Host: ' + (typeof navigator !== 'undefined' ? (navigator.platform || 'web') : 'web') + '\n' +
+        '              Uptime: ' + Math.floor((typeof performance !== 'undefined' ? performance.now() : 0) / 1000) + 's\n' +
+        '              Cloud: ' + (this.vfs.kvEndpoint ? 'ONLINE ☁' : 'local-only')
+      );
       case 'whoami': return this.io.print('root@badal (cloud-admin)');
       case 'uname': return this.io.print('BadalOS 1.0 cloud ' + (navigator ? navigator.platform || 'web' : 'web'));
       case 'date': return this.io.print(new Date().toString());
@@ -358,6 +457,45 @@ class Shell {
     if (!r.ok) this.io.print(name + ': ' + r.err);
   }
 
+  /** recursive tree print helper (tree command) */
+  printTree(node, prefix, io) {
+    const kids = node.type === 'dir' ? Object.entries(node.children) : [];
+    kids.forEach(([name, child], i) => {
+      const last = i === kids.length - 1;
+      io.print(prefix + (last ? '└── ' : '├── ') + name + (child.type === 'dir' ? '/' : ''));
+      if (child.type === 'dir') this.printTree(child, prefix + (last ? '    ' : '│   '), io);
+    });
+  }
+
+  /** walk — cwd se saare file paths (find/grep ke liye) */
+  walk(from) {
+    const out = [];
+    const rootAbs = this.vfs._resolve(from || '.');
+    const node = this.vfs._node(rootAbs);
+    if (!node) return out;
+    const rec = (n, prefix) => {
+      if (n.type !== 'dir') return;
+      for (const [name, child] of Object.entries(n.children)) {
+        const p = prefix + name;
+        if (child.type === 'dir') rec(child, p + '/');
+        else out.push(p);
+      }
+    };
+    rec(node, rootAbs === '/' ? '' : rootAbs.replace(/^\//, '') + '/');
+    return out;
+  }
+
+  /** head/tail helper — pehli/akhri N lines */
+  printSlice(args, dir) {
+    if (!args[0]) return this.io.print('usage: head/tail <file> [lines]');
+    const r = this.vfs.read(args[0]);
+    if (!r.ok) return this.io.print('head: ' + r.err);
+    const n = parseInt(args[1], 10) || 10;
+    const lines = r.content.split('\n');
+    const slice = dir === 0 ? lines.slice(0, n) : lines.slice(-n);
+    return this.io.print(slice.join('\n'));
+  }
+
   printHelp() {
     this.io.print(
       'BadalOS shell commands:\n' +
@@ -371,6 +509,16 @@ class Shell {
       '  mkdir <dir>     directory banao\n' +
       '  rm <file>       hatao\n' +
       '  echo <txt>      print\n' +
+      '  cp/mv <a> <b>  copy/move file\n' +
+      '  touch <file>    khali file banao\n' +
+      '  tree [dir]      directory ka tree\n' +
+      '  find <name>     file dhoondo\n' +
+      '  grep <txt> [p]  text dhoondo files mein\n' +
+      '  wc <file>       lines/words/bytes\n' +
+      '  head/tail <f> [n] pehli/akhri n lines\n' +
+      '  df              storage usage\n' +
+      '  top             process list + uptime\n' +
+      '  neofetch        OS info ☁\n' +
       '  whoami / uname / date\n' +
       '  ps              running processes'
     );
@@ -378,5 +526,5 @@ class Shell {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { VFS, Shell, ProcessManager, WindowManager, esc };
+  module.exports = { VFS, Shell, ProcessManager, WindowManager, esc, fmtKB };
 }
